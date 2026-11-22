@@ -611,6 +611,13 @@ class Handler(httpbody.ClosingHandler, BaseHTTPRequestHandler):
                     if challenge and self.client_address[0] in ("127.0.0.1", "::1"):
                         info["proof"] = BROWSER.proof(challenge)
                     return self.send_json(200, info)
+                # The PWA's public assets — the manifest, the service worker, the icons — carry no secrets, so
+                # serve them before the sign-in gate: the browser fetches them unauthenticated to register the
+                # service worker and to offer "Install" as an app on phones. Everything private (the page's session
+                # token, and all of /api/*) still sits behind the pairing check below.
+                if method == "GET" and (path == "/sw.js" or path == "/static/manifest.webmanifest"
+                                        or path.startswith("/static/icons/")):
+                    return self.serve_sw() if path == "/sw.js" else self.serve_static(path[len("/static/"):])
                 self.device = PAIRING.check(self.cookie(COOKIE), self.client_address[0])
                 if not self.device:
                     self.close_connection = True
